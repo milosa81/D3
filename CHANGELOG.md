@@ -1,3 +1,23 @@
+# 1.0.3
+
+Bug fix
+
+# 1.0.1
+
+Bug fixes:
+  - Sometime tooltip does not display (due to a workaround)
+
+# 1.0.0
+
+New Feature:
+  - You can add a transition when heat map renders for the first time
+  - You can custom background and text color
+
+Improvements:
+  - Improve tests
+
+Bug fixes
+
 # 0.0.17-beta
 
 bug fix: 

@@ -2,8 +2,6 @@ import React, { Component } from "react"
 import PropTypes from "prop-types"
 import * as d3 from "d3"
 import d3Tip from "d3-tip"
-import _ from "lodash"
-import "../tooltip.css"
 
 export default class HeatMapDate extends Component {
 	static propTypes = {
@@ -17,6 +15,8 @@ export default class HeatMapDate extends Component {
 		marginBottom: PropTypes.number,
 		displayLegend: PropTypes.bool,
 		transition: PropTypes.number,
+		backgroundColor: PropTypes.string,
+		textColor: PropTypes.string,
 	}
 
 	static defaultProps = {
@@ -26,6 +26,8 @@ export default class HeatMapDate extends Component {
 		rectWidth: 10,
 		defaultColor: "#cdcdcd",
 		transition: -1,
+		backgroundColor: "#fff",
+		textColor: "#000",
 	}
 
 	constructor(props) {
@@ -35,12 +37,12 @@ export default class HeatMapDate extends Component {
 	state = {
 		svgElem: undefined,
 		svgLegend: undefined,
-		firstRender: true
+		firstRender: true,
 	}
 
 	componentDidUpdate() {
 		setTimeout(() => {
-			if (this.props.transition > 0 && this.state.firstRender && this.state.svgElem && this.state.svgLegend) {
+			if (this.props.transition > 0 && this.state.firstRender && this.state.svgElem) {
 				this.setState({ firstRender: false })
 			}
 		}, this.props.transition)
@@ -58,6 +60,8 @@ export default class HeatMapDate extends Component {
 			marginBottom,
 			displayLegend,
 			transition,
+			backgroundColor,
+			textColor,
 		} = this.props
 		const { svgElem, svgLegend, firstRender } = this.state
 		const monthsName = ["Jan", "Feb", "Mar", "Avr", "May", "Jun", "July", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -67,6 +71,10 @@ export default class HeatMapDate extends Component {
 		if (transition > 0 && firstRender) {
 			t = d3.transition().duration(transition)
 		}
+
+		// This is a possible workaround about tooltips that do not want to hide when data change
+		// See https://github.com/Caged/d3-tip/issues/133
+		d3.select(".d3-tip").remove()
 
 		const svg = d3.select(svgElem)
 		svg.selectAll("*").remove()
@@ -92,6 +100,7 @@ export default class HeatMapDate extends Component {
 				})
 				.attr("y", 18)
 				.attr("font-size", 18)
+				.attr("fill", textColor)
 		}
 
 		for (let i = 0; i < nbDayDiff; i++) {
@@ -100,6 +109,7 @@ export default class HeatMapDate extends Component {
 					.text(daysName[i / 2])
 					.attr("y", (i % 7) * (rectWidth + marginBottom) + rectWidth / 6 + 32)
 					.attr("x", 0)
+					.attr("fill", textColor)
 			}
 			const objMatch = data.find(obj => {
 				const dateTmp = new Date(obj.date)
@@ -107,7 +117,7 @@ export default class HeatMapDate extends Component {
 				bufferDate.setHours(0, 0, 0, 0)
 				return dateTmp.getTime() === bufferDate.getTime()
 			})
-			let finalColor = "#FFFFFF"
+			let finalColor = backgroundColor
 			let maxCount = null
 			if (objMatch === undefined && bufferDate.getTime() >= startDateYesterday.getTime()) {
 				finalColor = defaultColor
@@ -130,6 +140,7 @@ export default class HeatMapDate extends Component {
 					})
 					.attr("y", 18)
 					.attr("font-size", 18)
+					.attr("fill", textColor)
 			}
 			bufferDate.setDate(bufferDate.getDate() + 1)
 		}
@@ -139,7 +150,7 @@ export default class HeatMapDate extends Component {
 				.attr("class", "d3-tip")
 				.offset([-8, 0])
 				.html(d => {
-					if (d.color !== "#FFFFFF") {
+					if (d.color !== backgroundColor) {
 						return (
 							"<div style={{ fontSize: '15' }}>" +
 							d.date.getFullYear() +
@@ -159,7 +170,7 @@ export default class HeatMapDate extends Component {
 				.data(dataset)
 				.enter()
 				.append("rect")
-				.style("opacity", t !== null ? 0 : 1)
+				.attr("fill-opacity", t !== null ? 0 : 1)
 				.attr("width", rectWidth)
 				.attr("height", rectWidth)
 				.attr("class", "dayRect")
@@ -171,22 +182,24 @@ export default class HeatMapDate extends Component {
 				})
 				.attr("fill", d => d.color)
 				.on("mouseover", function(d) {
-					if (d.color !== "#FFFFFF") tip.show(d, this)
+					if (d.color !== backgroundColor) tip.show(d, this)
 				})
 				.on("mouseout", tip.hide)
-			if (t !== null) rects.transition(t).style("opacity", "1")
+
+			if (t !== null) rects.transition(t).attr("fill-opacity", 1)
 		}
 
 		if (displayLegend) {
-			const svgLegend = d3.select(svgLegend)
-			svgLegend.selectAll("*").remove()
-			svgLegend.attr("width", (rectWidth + marginRight) * colors.size + 90 + 50).attr("height", 30)
-			svgLegend
+			const svgLegendD3 = d3.select(svgLegend)
+			svgLegendD3.selectAll("*").remove()
+			svgLegendD3.attr("width", (rectWidth + marginRight) * colors.length + 90 + 50).attr("height", 30)
+			svgLegendD3
 				.append("text")
 				.text("Legend :")
 				.attr("x", 0)
 				.attr("y", 20)
 				.attr("font-size", 18)
+				.attr("fill", textColor)
 
 			const tip = d3Tip()
 				.attr("class", "d3-tip")
@@ -194,9 +207,9 @@ export default class HeatMapDate extends Component {
 				.html(d => {
 					return "<div style={{ fontSize: '15' }}>" + d.count + "</div>"
 				})
-			svgLegend.call(tip)
+			svgLegendD3.call(tip)
 
-			svgLegend
+			svgLegendD3
 				.selectAll("rect")
 				.data(colors)
 				.enter()
@@ -209,12 +222,18 @@ export default class HeatMapDate extends Component {
 				.on("mouseover", tip.show)
 				.on("mouseout", tip.hide)
 		} else {
-			const svgLegend = d3.select(svgLegend)
-			svgLegend.attr("width", 0).attr("height", 0)
+			const svgLegendD3 = d3.select(svgLegend)
+			svgLegendD3.attr("width", 0).attr("height", 0)
 		}
 
 		return (
-			<div style={{ width: "auto", height: "auto" }} id="react-d3-heatMap">
+			<div
+				style={{
+					width: (rectWidth + marginRight) * (nbDayDiff / 7) + 70 + "px",
+					height: "auto",
+					backgroundColor: backgroundColor,
+				}}
+				id="react-d3-heatMap">
 				<svg
 					style={{ display: "block" }}
 					ref={elem => {
