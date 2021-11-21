@@ -2,6 +2,7 @@ import React from "react"
 import ReactDOM from "react-dom"
 import HeatMapDate from "./index"
 import { setData } from "./utils"
+import "./styles/app.css"
 //Here is the playground
 //You can test your code here
 const endDate = new Date()
@@ -16,10 +17,12 @@ colors.push({ count: 6, color: "#ffcc00" })
 colors.push({ count: 7, color: "#ff9933" })
 colors.push({ count: 9, color: "#ff0000" })
 
-const startDate2 = new Date(2018, 8, 2)
-const endDate2 = new Date(2018, 8, 15)
+const startDate2 = new Date(2018, 11, 25)
+const endDate2 = new Date(2019, 0, 3)
 const data2 = setData(startDate2, endDate2, 9)
-
+/**
+ * This is the component playground that you have to use during your development
+ */
 class App extends React.Component {
 	constructor(props) {
 		super(props)
@@ -53,8 +56,32 @@ class App extends React.Component {
 					marginRight={15}
 					marginBottom={12}
 					rectWidth={15}
-					displayLegend={false}
 					transition={1000}
+					radius={8}
+					classnames={"border"}
+					displayYear
+				/>
+				<br />
+				<HeatMapDate
+					startDate={startDate2}
+					endDate={endDate2}
+					data={data2}
+					colors={colors}
+					marginRight={15}
+					marginBottom={12}
+					rectWidth={15}
+					transition={1000}
+					radius={4}
+					classnames={"border"}
+					onClick={(d, i) => {
+						console.log("click", d, i)
+					}}
+					onMouseEnter={(d, i) => {
+						console.log("enter", d, i)
+					}}
+					onMouseLeave={(d, i) => {
+						console.log("leave", d, i)
+					}}
 				/>
 			</div>
 		)
