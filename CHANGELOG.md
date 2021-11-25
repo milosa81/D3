@@ -1,3 +1,21 @@
+# 1.0.9
+
+New Feature:
+  - You can choose to start your heatmap Monday or Sunday. Default is Sunday
+
+Security alert:
+  - Fix a dependency alert (dep affected : merge < 1.2.1)
+
+# 1.0.8
+
+New Features:
+  - Add a function that convert an array of dates to an array of data (`Array[{date: Date, count: Number}]`)
+  - You can custom tooltip's text
+  - You can also custom default color tooltip's text
+
+Improvement:
+  - Default color is displayed in legend
+
 # 1.0.7
 
 New Features:
@@ -7,7 +25,7 @@ New Features:
   - When a square is hovered, it display a stroke on this square
 
 Bug fix:
-  - Legend ooltips should works correctly even if datas are updated
+  - Legend tooltips should works correctly even if datas are updated
 
 # 1.0.6
 

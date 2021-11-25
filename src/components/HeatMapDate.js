@@ -22,6 +22,8 @@ export default class HeatMapDate extends PureComponent {
 		colors: PropTypes.instanceOf(Array).isRequired,
 		// Apply a default color for dates whose count are too low to apply a color from 'colors'
 		defaultColor: PropTypes.string,
+		// Custom text for default color in tooltip legend
+		textDefaultColor: PropTypes.string,
 		// Define a width and height for square
 		rectWidth: PropTypes.number,
 		// Define a margin between two squares on x axis
@@ -48,6 +50,8 @@ export default class HeatMapDate extends PureComponent {
 		onMouseEnter: PropTypes.func,
 		// Handle onMouseLeave on each square callback
 		onMouseLeave: PropTypes.func,
+		// Change week-day to start (Sunday or Monday)
+		shouldStartMonday: PropTypes.bool,
 	}
 
 	/**
@@ -67,6 +71,7 @@ export default class HeatMapDate extends PureComponent {
 		onClick: () => {},
 		onMouseLeave: () => {},
 		onMouseEnter: () => {},
+		shouldStartMonday: false,
 	}
 
 	constructor(props) {
@@ -116,19 +121,21 @@ export default class HeatMapDate extends PureComponent {
 			onClick,
 			onMouseEnter,
 			onMouseLeave,
+			textDefaultColor,
+			shouldStartMonday,
 		} = this.props
 		const { svgElem, svgLegend, firstRender } = this.state
 		// Array of months for x axis
 		const monthsName = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "July", "Aug", "Sep", "Oct", "Nov", "Dec"]
 		// Array of days for y axis
-		const daysName = ["Sun", "Tue", "Thu", "Sat"]
+		const daysName = !shouldStartMonday ? ["Sun", "Tue", "Thu", "Sat"] : ["Mon", "Wed", "Fri", "Sun"]
 		const dataset = []
 		let t = null
 		if (transition > 0 && firstRender) {
 			t = d3.transition().duration(transition)
 		}
 
-		// This is a possible workaround about tooltips that do not want to hide when data change
+		// This is a possible workaround about tooltips that do not want to hide when data changes
 		// See https://github.com/Caged/d3-tip/issues/133
 		d3.select(".d3-tip." + this.ID).remove()
 		d3.select(".d3-tip." + this.IDLegend).remove()
@@ -146,8 +153,11 @@ export default class HeatMapDate extends PureComponent {
 				endDate.getMonth() === 0 &&
 				endDate.getFullYear() - startDate.getFullYear() === 1)
 		startDateYesterday.setDate(startDateYesterday.getDate() - 1)
-		// We set bufferDate to the previous Sunday of startDate.
+		// We set bufferDate to the previous Sunday (or Monday following 'shouldStartMonday' prop) of startDate.
 		tmpBufferDate.setDate(tmpBufferDate.getDate() - startDateYesterday.getDay())
+		if (!shouldStartMonday) {
+			tmpBufferDate.setDate(tmpBufferDate.getDate() - 1)
+		}
 		const bufferDate = new Date(tmpBufferDate)
 		bufferDate.setHours(0, 0, 0, 0)
 		// Number of day from bufferDate to endDate
@@ -260,7 +270,7 @@ export default class HeatMapDate extends PureComponent {
 				.attr("height", rectWidth)
 				.attr("class", "dayRect")
 				.attr("x", d => {
-					return Math.floor(d.i / 7) * (rectWidth + marginRight) + 32
+					return Math.floor(d.i / 7) * (rectWidth + marginRight) + 40
 				})
 				.attr("y", d => {
 					return (d.i % 7) * (rectWidth + marginBottom) + 24
@@ -306,13 +316,21 @@ export default class HeatMapDate extends PureComponent {
 				.attr("class", "d3-tip " + this.IDLegend)
 				.offset([-8, 0])
 				.html(d => {
-					return "<div style={{ fontSize: '15' }}>" + d.count + "</div>"
+					const displ = d.text ? d.text : d.count.toString()
+					return "<div style={{ fontSize: '15' }}>" + displ + "</div>"
 				})
 			svgLegendD3.call(tip)
-
 			svgLegendD3
 				.selectAll("rect")
-				.data(colors)
+				.data(
+					[
+						{
+							color: defaultColor,
+							count: 0,
+							text: textDefaultColor ? textDefaultColor : "0",
+						},
+					].concat(colors)
+				)
 				.enter()
 				.append("rect")
 				.attr("width", rectWidth)
