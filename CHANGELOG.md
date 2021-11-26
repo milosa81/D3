@@ -1,3 +1,10 @@
+# 1.1.0
+
+Enhancement:
+  - Support typescript 🎉
+
+Important : Transition has been removed
+
 # 1.0.9
 
 New Feature:
