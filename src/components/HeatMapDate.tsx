@@ -1,6 +1,7 @@
 import * as React from "react"
 import * as d3 from "d3"
 import { IPoint, IColor } from "../utils"
+import { generateD3Dataset } from "./helpers/HeatMapDate"
 import d3Tip from "d3-tip"
 
 interface Props {
@@ -81,6 +82,11 @@ export default class HeatMapDate extends React.PureComponent<Props, State> {
 
 	constructor(props: Props) {
 		super(props)
+		if (props.rectWidth && props.rectWidth < 0) throw new Error("rectWidth must be greater than zero")
+		if (props.marginBottom && props.marginBottom < 0) throw new Error("marginBottom must be greater than zero")
+		if (props.marginRight && props.marginRight < 0) throw new Error("marginRight must be greater than zero")
+		if (props.monthSpace && props.monthSpace < 0) throw new Error("monthSpace must be greater than zero")
+		if (props.radius && props.radius < 0) throw new Error("radius must be greater than zero")
 		this.ID = Math.random()
 			.toString(36)
 			.replace(/[^a-z]+/g, "")
@@ -96,200 +102,25 @@ export default class HeatMapDate extends React.PureComponent<Props, State> {
 		}
 	}
 
-	render() {
+	private cleanHeatMap(svg: any) {
+		d3.select(".d3-tip." + this.ID).remove()
+		d3.select(".d3-tip." + this.IDLegend).remove()
+		// We remove all elements (rect + text) to properly update the svg
+		svg.selectAll("*").remove()
+	}
+
+	private renderLegend(svgLegend: SVGSVGElement, legendWidth: number) {
 		const {
-			startDate,
-			endDate,
-			data,
 			colors,
 			defaultColor,
 			rectWidth,
 			marginRight,
-			marginBottom,
 			displayLegend,
 			backgroundColor,
 			textColor,
 			radius,
-			classnames,
-			displayYear,
-			onClick,
-			onMouseEnter,
-			onMouseLeave,
 			textDefaultColor,
-			shouldStartMonday,
-			monthSpace,
 		} = this.props
-		const { svgElem, svgLegend, firstRender } = this.state
-		// Array of months for x axis
-		const monthsName = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "July", "Aug", "Sep", "Oct", "Nov", "Dec"]
-		// Array of days for y axis
-		const daysName = !shouldStartMonday ? ["Sun", "Tue", "Thu", "Sat"] : ["Mon", "Wed", "Fri", "Sun"]
-		const dataset = []
-
-		// This is a possible workaround about tooltips that do not want to hide when data changes
-		// See https://github.com/Caged/d3-tip/issues/133
-		d3.select(".d3-tip." + this.ID).remove()
-		d3.select(".d3-tip." + this.IDLegend).remove()
-
-		const svg = d3.select(svgElem)
-		// We remove all elemnts (rect + text) to properly update the svg
-		svg.selectAll("*").remove()
-		const tmpBufferDate = new Date(startDate)
-		const startDateYesterday = new Date(startDate)
-		// When want to display month on first column if difference between
-		// startDate and endDate less than 1 month
-		const noMonthName =
-			(startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear()) ||
-			(startDate.getMonth() == 11 &&
-				endDate.getMonth() === 0 &&
-				endDate.getFullYear() - startDate.getFullYear() === 1)
-		startDateYesterday.setDate(startDateYesterday.getDate() - 1)
-		// We set bufferDate to the previous Sunday (or Monday following 'shouldStartMonday' prop) of startDate.
-		tmpBufferDate.setDate(tmpBufferDate.getDate() - startDateYesterday.getDay())
-		if (!shouldStartMonday) {
-			tmpBufferDate.setDate(tmpBufferDate.getDate() - 1)
-		}
-		const bufferDate = new Date(tmpBufferDate)
-		bufferDate.setHours(0, 0, 0, 0)
-		// Number of day from bufferDate to endDate
-		const nbDayDiff = (endDate.getTime() - bufferDate.getTime()) / 1000 / 60 / 60 / 24
-		const nbMonthsDiff = (endDate.getTime() - bufferDate.getTime()) / 1000 / 60 / 60 / 24 / 30
-		const legendWidth = (rectWidth + marginRight) * colors.length + 90 + 50
-		const svgWidth = (rectWidth + marginRight) * (nbDayDiff / 7) + nbMonthsDiff * monthSpace + 70
-		// Set width and height of SVG element
-		svg.attr("width", legendWidth > svgWidth ? legendWidth : svgWidth).attr(
-			"height",
-			(rectWidth + marginBottom) * 7 + 50
-		)
-
-		for (let i = 0; i < nbDayDiff; i++) {
-			if (i == 0 || i === 2 || i === 4 || i === 6) {
-				// Display day name as y axis
-				svg.append("text")
-					.text(daysName[i / 2])
-					.attr("y", (i % 7) * (rectWidth + marginBottom) + rectWidth / 6 + 32)
-					.attr("x", 0)
-					.attr("font-size", rectWidth + 3)
-					.attr("fill", textColor)
-			}
-			// Find the first data that match with current bufferDate
-			const objMatch = data.find(obj => {
-				const dateTmp = new Date(obj.date)
-				dateTmp.setHours(0, 0, 0, 0)
-				bufferDate.setHours(0, 0, 0, 0)
-				return dateTmp.getTime() === bufferDate.getTime()
-			})
-			// If bufferDate < (startDate - 1 day) we set the square color like background to make that 'invisible'
-			let finalColor: any = backgroundColor
-			let maxCount = null
-			// If there is no match we set the default color
-			if (objMatch === undefined && bufferDate.getTime() >= startDateYesterday.getTime()) {
-				finalColor = defaultColor
-			} else if (bufferDate.getTime() >= startDateYesterday.getTime()) {
-				finalColor = colors.filter(c => c.count <= objMatch.count)
-				if (finalColor.length === 0) {
-					finalColor = defaultColor
-				} else {
-					finalColor = finalColor[finalColor.length - 1].color
-				}
-			}
-			const today = new Date(bufferDate.getTime())
-			// Finally, we push it to an Array that will be used by d3
-			dataset.push({ date: today, count: objMatch ? objMatch.count : maxCount || 0, color: finalColor, i })
-			bufferDate.setDate(bufferDate.getDate() + 1)
-		}
-
-		if (dataset.length > 0) {
-			// I added an ID the tooltip because it's a workaround to prevent the tooltip won't hide when the component is updating
-			const tip = d3Tip()
-				.attr("class", "d3-tip " + this.ID)
-				.offset([-8, 0])
-				.html(d => {
-					if (d.color !== backgroundColor) {
-						return (
-							"<div style={{ fontSize: '15' }}>" +
-							d.date.getFullYear() +
-							"/" +
-							(d.date.getMonth() + 1) +
-							"/" +
-							d.date.getDate() +
-							" : " +
-							d.count +
-							"</div>"
-						)
-					} else return null
-				})
-			svg.call(tip)
-			// Display all data squares
-			let monthOffset = 0
-			const rects = svg
-				.selectAll("rect")
-				.data(dataset)
-				.enter()
-				.append("rect")
-				.attr("fill-opacity", 1)
-				.attr("width", rectWidth)
-				.attr("height", rectWidth)
-				.attr("class", "dayRect")
-				.attr("x", d => {
-					const prefixYear = displayYear ? rectWidth : 0
-					const currentDate = new Date(d.date)
-					if (currentDate.getDate() === 1 && d.color !== backgroundColor) {
-						monthOffset++
-					}
-					if (
-						(currentDate.getDate() === 1 && d.color !== backgroundColor) ||
-						currentDate.getTime() === new Date(startDate).setHours(0, 0, 0, 0)
-					) {
-						const prefixWidth = displayYear ? rectWidth : 0
-						const prefix = displayYear
-							? new Date(currentDate)
-									.getFullYear()
-									.toString()
-									.substring(2, 4) + "/"
-							: ""
-						// Display month name
-						if (!noMonthName || (noMonthName && monthOffset < 1) || monthSpace >= rectWidth) {
-							svg.append("text")
-								.text(prefix + monthsName[currentDate.getMonth()])
-								.attr("x", () => {
-									return (
-										Math.floor(d.i / 7) * (rectWidth + marginRight) +
-										40 +
-										monthOffset * monthSpace -
-										prefixYear
-									)
-								})
-								.attr("y", 18)
-								.attr("font-size", rectWidth + 3)
-								.attr("fill", textColor)
-						}
-					}
-					return Math.floor(d.i / 7) * (rectWidth + marginRight) + 40 + monthOffset * monthSpace
-				})
-				.attr("y", d => {
-					return (d.i % 7) * (rectWidth + marginBottom) + 24
-				})
-				.attr("fill", d => d.color)
-				.attr("rx", radius)
-				.attr("ry", radius)
-				.on("mouseover", function(d, i) {
-					if (d.color !== backgroundColor) {
-						tip.show(d, this)
-						d3.select(this).attr("stroke", "black")
-					}
-					onMouseEnter(d, i)
-				})
-				.on("mouseout", (d, i) => {
-					tip.hide(d, this)
-					d3.selectAll("rect").attr("stroke", "none")
-					onMouseLeave(d, i)
-				})
-				.on("click", (d, i) => {
-					onClick(d, i)
-				})
-		}
-
 		if (displayLegend) {
 			const svgLegendD3 = d3.select(svgLegend)
 			svgLegendD3.selectAll("*").remove()
@@ -301,7 +132,6 @@ export default class HeatMapDate extends React.PureComponent<Props, State> {
 				.attr("y", 20)
 				.attr("font-size", rectWidth + 3)
 				.attr("fill", textColor)
-
 			const tip = d3Tip()
 				.attr("class", "d3-tip " + this.IDLegend)
 				.offset([-8, 0])
@@ -346,6 +176,186 @@ export default class HeatMapDate extends React.PureComponent<Props, State> {
 			const svgLegendD3 = d3.select(svgLegend)
 			svgLegendD3.attr("width", 0).attr("height", 0)
 		}
+	}
+
+	private renderHeatMap(dataset: any[], svg: any, noMonthName: boolean) {
+		const {
+			startDate,
+			rectWidth,
+			marginBottom,
+			backgroundColor,
+			textColor,
+			radius,
+			displayYear,
+			onClick,
+			onMouseEnter,
+			onMouseLeave,
+			monthSpace,
+			marginRight,
+		} = this.props
+		// Array of months for x axis
+		const monthsName = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "July", "Aug", "Sep", "Oct", "Nov", "Dec"]
+		if (dataset.length > 0) {
+			// I added an ID the tooltip because it's a workaround to prevent the tooltip won't hide when the component is updating
+			const tip = d3Tip()
+				.attr("class", "d3-tip " + this.ID)
+				.offset([-8, 0])
+				.html(d => {
+					if (d.color !== backgroundColor) {
+						return (
+							"<div style={{ fontSize: '15' }}>" +
+							d.date.getFullYear() +
+							"/" +
+							(d.date.getMonth() + 1) +
+							"/" +
+							d.date.getDate() +
+							" : " +
+							d.count +
+							"</div>"
+						)
+					} else return null
+				})
+			svg.call(tip)
+			// Display all data squares
+			let monthOffset = 0
+			svg.selectAll("rect")
+				.data(dataset)
+				.enter()
+				.append("rect")
+				.attr("fill-opacity", 1)
+				.attr("width", rectWidth)
+				.attr("height", rectWidth)
+				.attr("class", "dayRect")
+				.attr("x", d => {
+					const prefixYear = displayYear ? rectWidth : 0
+					const currentDate = new Date(d.date)
+					if (currentDate.getDate() === 1 && d.color !== backgroundColor) {
+						monthOffset++
+					}
+					if (
+						(currentDate.getDate() === 1 && d.color !== backgroundColor) ||
+						(currentDate.getTime() === new Date(startDate).setHours(0, 0, 0, 0) &&
+							new Date(startDate).getDate() < 14)
+					) {
+						const prefix = displayYear
+							? new Date(currentDate)
+									.getFullYear()
+									.toString()
+									.substring(2, 4) + "/"
+							: ""
+						// Display month name
+						svg.append("text")
+							.text(prefix + monthsName[currentDate.getMonth()])
+							.attr("x", () => {
+								return (
+									Math.floor(d.i / 7) * (rectWidth + marginRight) +
+									40 +
+									monthOffset * monthSpace -
+									prefixYear
+								)
+							})
+							.attr("y", 18)
+							.attr("font-size", rectWidth + 3)
+							.attr("fill", textColor)
+					}
+					return Math.floor(d.i / 7) * (rectWidth + marginRight) + 40 + monthOffset * monthSpace
+				})
+				.attr("y", d => {
+					return (d.i % 7) * (rectWidth + marginBottom) + 24
+				})
+				.attr("fill", d => d.color)
+				.attr("rx", radius)
+				.attr("ry", radius)
+				.on("mouseover", function(d, i) {
+					if (d.color !== backgroundColor) {
+						tip.show(d, this)
+						d3.select(this).attr("stroke", "black")
+					}
+					onMouseEnter(d, i)
+				})
+				.on("mouseout", (d, i) => {
+					tip.hide(d, this)
+					d3.selectAll("rect").attr("stroke", "none")
+					onMouseLeave(d, i)
+				})
+				.on("click", (d, i) => {
+					onClick(d, i)
+				})
+		}
+	}
+
+	render() {
+		const {
+			startDate,
+			endDate,
+			data,
+			colors,
+			defaultColor,
+			rectWidth,
+			marginRight,
+			marginBottom,
+			backgroundColor,
+			textColor,
+			classnames,
+			shouldStartMonday,
+			monthSpace,
+		} = this.props
+		const { svgElem, svgLegend, firstRender } = this.state
+		// Array of days for y axis
+		const daysName = !shouldStartMonday ? ["Sun", "Tue", "Thu", "Sat"] : ["Mon", "Wed", "Fri", "Sun"]
+
+		const svg = d3.select(svgElem)
+
+		// This is a possible workaround about tooltips that do not want to hide when data changes
+		// See https://github.com/Caged/d3-tip/issues/133
+		this.cleanHeatMap(svg)
+		const tmpBufferDate = new Date(startDate)
+		const startDateYesterday = new Date(startDate)
+		// When want to display month on first column if difference between
+		// startDate and endDate less than 1 month
+		const noMonthName =
+			(startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear()) ||
+			(startDate.getMonth() == 11 &&
+				endDate.getMonth() === 0 &&
+				endDate.getFullYear() - startDate.getFullYear() === 1)
+		startDateYesterday.setDate(startDateYesterday.getDate() - 1)
+		// We set bufferDate to the previous Sunday (or Monday following 'shouldStartMonday' prop) of startDate.
+		tmpBufferDate.setDate(tmpBufferDate.getDate() - startDateYesterday.getDay())
+		if (!shouldStartMonday) {
+			tmpBufferDate.setDate(tmpBufferDate.getDate() - 1)
+		}
+		// buffer that begin from previous Sunday (or Monday) of startDate then browse every day to endDate
+		const bufferDate = new Date(tmpBufferDate)
+		bufferDate.setHours(0, 0, 0, 0)
+		// Number of day from bufferDate to endDate
+		const nbDayDiff = (endDate.getTime() - bufferDate.getTime()) / 1000 / 60 / 60 / 24
+		const nbMonthsDiff = (endDate.getTime() - bufferDate.getTime()) / 1000 / 60 / 60 / 24 / 30
+		const legendWidth = (rectWidth + marginRight) * colors.length + 90 + 50
+		const svgWidth = (rectWidth + marginRight) * (nbDayDiff / 7) + nbMonthsDiff * monthSpace + 70
+		// Set width and height of SVG element
+		svg.attr("width", legendWidth > svgWidth ? legendWidth : svgWidth).attr(
+			"height",
+			(rectWidth + marginBottom) * 7 + 50
+		)
+
+		const dataset = generateD3Dataset(
+			nbDayDiff,
+			svg,
+			daysName,
+			rectWidth,
+			marginBottom,
+			textColor,
+			data,
+			bufferDate,
+			backgroundColor,
+			startDateYesterday,
+			defaultColor,
+			colors
+		)
+
+		this.renderLegend(svgLegend, legendWidth)
+
+		this.renderHeatMap(dataset, svg, noMonthName)
 
 		return (
 			<div
@@ -355,7 +365,7 @@ export default class HeatMapDate extends React.PureComponent<Props, State> {
 					height: "auto",
 					backgroundColor: backgroundColor,
 				}}
-				id="react-d3-heatMap">
+				id={"react-d3-heatMap-" + this.ID}>
 				<svg
 					style={{ display: "block" }}
 					ref={elem => {
