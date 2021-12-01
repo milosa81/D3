@@ -1,7 +1,7 @@
 import * as React from "react"
 import * as d3 from "d3"
-import { IPoint, IColor } from "../utils"
-import { generateD3Dataset } from "./helpers/HeatMapDate"
+import { IPoint, IColor, IAnimation } from "../utils"
+import { generateD3Dataset, noDisplayColor } from "./helpers/HeatMapDate"
 import d3Tip from "d3-tip"
 
 interface Props {
@@ -45,6 +45,10 @@ interface Props {
 	shouldStartMonday?: boolean
 	// Change month space
 	monthSpace?: number
+	// Range that allows to display data
+	rangeDisplayData?: Array<Date>
+	// fade in animation properties
+	fadeAnimation?: IAnimation
 }
 
 interface State {
@@ -78,6 +82,8 @@ export default class HeatMapDate extends React.PureComponent<Props, State> {
 		onMouseEnter: () => {},
 		shouldStartMonday: false,
 		monthSpace: 0,
+		rangeDisplayData: [],
+		fadeAnimation: { animate: true, duration: 0.4 },
 	}
 
 	constructor(props: Props) {
@@ -267,7 +273,7 @@ export default class HeatMapDate extends React.PureComponent<Props, State> {
 				.attr("rx", radius)
 				.attr("ry", radius)
 				.on("mouseover", function(d, i) {
-					if (d.color !== backgroundColor) {
+					if (d.color !== backgroundColor && d.color !== noDisplayColor) {
 						tip.show(d, this)
 						d3.select(this).attr("stroke", "black")
 					}
@@ -299,6 +305,8 @@ export default class HeatMapDate extends React.PureComponent<Props, State> {
 			classnames,
 			shouldStartMonday,
 			monthSpace,
+			rangeDisplayData,
+			fadeAnimation,
 		} = this.props
 		const { svgElem, svgLegend, firstRender } = this.state
 		// Array of days for y axis
@@ -350,21 +358,29 @@ export default class HeatMapDate extends React.PureComponent<Props, State> {
 			backgroundColor,
 			startDateYesterday,
 			defaultColor,
-			colors
+			colors,
+			rangeDisplayData
 		)
 
 		this.renderLegend(svgLegend, legendWidth)
 
 		this.renderHeatMap(dataset, svg, noMonthName)
 
+		const styles = {
+			width: legendWidth > svgWidth ? legendWidth : svgWidth + "px",
+			height: "auto",
+			backgroundColor: backgroundColor,
+			animationDuration: "0s",
+		}
+
+		if (fadeAnimation.animate) {
+			styles.animationDuration = fadeAnimation.duration + "s"
+		}
+
 		return (
 			<div
-				className={classnames}
-				style={{
-					width: legendWidth > svgWidth ? legendWidth : svgWidth + "px",
-					height: "auto",
-					backgroundColor: backgroundColor,
-				}}
+				className={"react-d3-heatMap-container " + classnames}
+				style={styles}
 				id={"react-d3-heatMap-" + this.ID}>
 				<svg
 					style={{ display: "block" }}
