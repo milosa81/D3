@@ -1,8 +1,15 @@
+# 1.1.5
+
+New Feature : 
+  - fadeAnimation : Control fade in animation. 
+
+Other :
+  - Apply patches for High severities
+
 # 1.1.4
 
 New Feature : 
   - rangeDisplaData : Display data between two dates. 
-
 
 # 1.1.3
 
